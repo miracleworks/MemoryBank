@@ -21,7 +21,7 @@ A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent 
    cp .env.example .env
    ```
    Edit `.env` with your GCP project ID and location.
-3. Install dependencies: `uv sync` or `pip install -r requirements.txt`
+3. Install dependencies: `uv sync`
 4. Run the app: `uv run streamlit run main.py`
 
 ## App Structure
