@@ -195,7 +195,11 @@ if st.session_state.mb_agent_engine_name:
                         name=ae_name,
                         scope={"user_id": user_id.strip()},
                     )
-                    st.session_state.mb_existing_memories = list(results)
+                    raw = list(results)
+                    st.session_state.mb_existing_memories = [
+                        item for item in raw
+                        if (getattr(item.memory if hasattr(item, "memory") else item, "fact", None))
+                    ]
                 except Exception as e:
                     st.error(f"Failed to retrieve memories: {e}")
                     st.session_state.mb_existing_memories = []
@@ -221,12 +225,15 @@ if st.session_state.mb_agent_engine_name:
                     else:
                         st.success("All memories deleted.")
                     st.rerun()
-        elif existing is not None and user_id.strip() and not load_clicked:
-            st.info(f"No existing memories found for user `{user_id}`.")
+        elif "mb_existing_memories" in st.session_state and not existing:
+            st.info(f"No memories found for user `{user_id}`. Start a conversation and generate memories to see them here.")
 
     # ── MEMORY CUSTOMIZATION ──
     with st.container(border=True):
-        st.markdown("### Memory Topics Customization")
+        st.markdown("### Memory Bank Customization")
+
+        # --- Topics ---
+        st.markdown("**Memory Topics**")
         st.caption(
             "Choose which types of information Memory Bank should extract and persist. "
             "By default, all topics are active. Selecting a subset restricts extraction to only those topics."
@@ -239,7 +246,6 @@ if st.session_state.mb_agent_engine_name:
             "EXPLICIT_INSTRUCTIONS": "Explicit remember/forget instructions from the user",
         }
 
-        # Initialize selected topics in session state
         if "mb_selected_topics" not in st.session_state:
             st.session_state.mb_selected_topics = list(MANAGED_TOPICS.keys())
 
@@ -254,7 +260,60 @@ if st.session_state.mb_agent_engine_name:
                 ):
                     selected.append(topic_key)
 
-        if st.button("Apply Topic Customization", key="mb_apply_topics"):
+        st.divider()
+
+        # --- TTL ---
+        st.markdown("**Memory TTL**")
+        st.caption("Set expiration times for memories. Memories are automatically deleted after the TTL expires.")
+
+        ttl_mode = st.radio(
+            "TTL Mode",
+            ["None", "Default TTL", "Granular TTL"],
+            horizontal=True,
+            key="mb_ttl_mode",
+        )
+
+        TTL_UNITS = {"Seconds": 1, "Minutes": 60, "Hours": 3600}
+        ttl_config = None
+
+        if ttl_mode == "Default TTL":
+            col_val, col_unit = st.columns([2, 1])
+            with col_val:
+                default_val = st.number_input(
+                    "TTL", min_value=1, value=60, key="mb_default_ttl_val",
+                )
+            with col_unit:
+                default_unit = st.selectbox("Unit", list(TTL_UNITS.keys()), index=1, key="mb_default_ttl_unit")
+            ttl_config = {"default_ttl": f"{default_val * TTL_UNITS[default_unit]}s"}
+
+        elif ttl_mode == "Granular TTL":
+            st.caption(
+                "Set TTL per operation type. Leave at 0 to skip (won't update expiration for that operation)."
+            )
+            col_t1, col_t2, col_t3 = st.columns(3)
+            with col_t1:
+                create_val = st.number_input("CreateMemory TTL", min_value=0, value=0, key="mb_create_ttl_val")
+                create_unit = st.selectbox("Unit", list(TTL_UNITS.keys()), index=1, key="mb_create_ttl_unit")
+            with col_t2:
+                gen_created_val = st.number_input("GenerateMemories (new) TTL", min_value=0, value=5, key="mb_gen_created_ttl_val")
+                gen_created_unit = st.selectbox("Unit", list(TTL_UNITS.keys()), index=1, key="mb_gen_created_ttl_unit")
+            with col_t3:
+                gen_updated_val = st.number_input("GenerateMemories (updated) TTL", min_value=0, value=0, key="mb_gen_updated_ttl_val")
+                gen_updated_unit = st.selectbox("Unit", list(TTL_UNITS.keys()), index=1, key="mb_gen_updated_ttl_unit")
+            granular = {}
+            if create_val > 0:
+                granular["create_ttl"] = f"{create_val * TTL_UNITS[create_unit]}s"
+            if gen_created_val > 0:
+                granular["generate_created_ttl"] = f"{gen_created_val * TTL_UNITS[gen_created_unit]}s"
+            if gen_updated_val > 0:
+                granular["generate_updated_ttl"] = f"{gen_updated_val * TTL_UNITS[gen_updated_unit]}s"
+            if granular:
+                ttl_config = {"granular_ttl_config": granular}
+
+        st.divider()
+
+        # --- Single Apply button for both topics + TTL ---
+        if st.button("Apply Configuration", key="mb_apply_config"):
             if not selected:
                 st.warning("Select at least one topic.")
             else:
@@ -264,29 +323,32 @@ if st.session_state.mb_agent_engine_name:
                             {"managed_memory_topic": {"managed_topic_enum": t}}
                             for t in selected
                         ]
+                        mb_config = {
+                            "customization_configs": [
+                                {
+                                    "scope_keys": ["user_id"],
+                                    "memory_topics": memory_topics,
+                                }
+                            ],
+                        }
+                        if ttl_config:
+                            mb_config["ttl_config"] = ttl_config
+
                         client.agent_engines.update(
                             name=ae_name,
                             config={
                                 "context_spec": {
-                                    "memory_bank_config": {
-                                        "customization_configs": [
-                                            {
-                                                "scope_keys": ["user_id"],
-                                                "memory_topics": memory_topics,
-                                            }
-                                        ],
-                                    }
+                                    "memory_bank_config": mb_config
                                 }
                             },
                         )
                         st.session_state.mb_selected_topics = selected
-                        st.success(
-                            f"Updated: {len(selected)} topic(s) active — "
-                            + ", ".join(selected)
-                        )
+                        summary = f"Topics: {', '.join(selected)}"
+                        if ttl_config:
+                            summary += f" | TTL: {ttl_mode}"
+                        st.success(f"Configuration applied — {summary}")
                     except Exception as e:
                         st.error(f"Failed to update configuration: {e}")
-
 
     # ── CREATE SESSION ──
     with st.container(border=True):
@@ -375,13 +437,18 @@ if st.session_state.mb_agent_engine_name:
             # Chat input — using text_input + button so it stays inline
             def _submit_message():
                 st.session_state.mb_pending_message = st.session_state.mb_chat_input
+                st.session_state.mb_chat_input = ""
 
             col_input, col_send = st.columns([5, 1])
             with col_input:
                 st.text_input("Message", placeholder="Say something to the agent...", key="mb_chat_input", label_visibility="collapsed", on_change=_submit_message)
             with col_send:
-                if st.button("Send", key="mb_send", use_container_width=True):
-                    _submit_message()
+                send_clicked = st.button("Send", key="mb_send", use_container_width=True)
+
+            if send_clicked and st.session_state.get("mb_chat_input", "").strip():
+                st.session_state.mb_pending_message = st.session_state.mb_chat_input
+                st.session_state.mb_chat_input = ""
+                st.rerun()
 
             prompt = st.session_state.pop("mb_pending_message", "")
             if prompt.strip():
