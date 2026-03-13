@@ -85,6 +85,30 @@ div[data-testid="stButton"] button {
 div[data-testid="stButton"] button:hover {
     background-color: #0F766E !important;
 }
+
+/* --- Custom spinner with dancing brain --- */
+div[data-testid="stSpinner"] > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+div[data-testid="stSpinner"] > div::before {
+    content: "🧠";
+    font-size: 1.4rem;
+    display: inline-block;
+    animation: brain-dance 1s ease-in-out infinite;
+}
+@keyframes brain-dance {
+    0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+    25% { transform: translateY(-6px) rotate(-10deg) scale(1.1); }
+    50% { transform: translateY(0) rotate(0deg) scale(1); }
+    75% { transform: translateY(-6px) rotate(10deg) scale(1.1); }
+}
+
+/* Hide default Streamlit spinner icon */
+div[data-testid="stSpinner"] svg {
+    display: none !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -425,19 +449,20 @@ if st.session_state.mb_agent_engine_name:
                 create_session_clicked = st.button("Create Session", key="mb_create_session", use_container_width=True)
 
             if create_session_clicked:
-                try:
-                    session = client.agent_engines.sessions.create(
-                        name=ae_name,
-                        user_id=guest_id_input,
-                        config={"display_name": f"{session_display_name} for {guest_id_input}"},
-                    )
-                    st.session_state.mb_session_name = session.response.name
-                    st.session_state.mb_guest_id = guest_id_input
-                    st.session_state.mb_conversation = []
-                    st.session_state.mb_event_count = 0
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to create session: {e}")
+                with st.spinner("Creating session..."):
+                    try:
+                        session = client.agent_engines.sessions.create(
+                            name=ae_name,
+                            user_id=guest_id_input,
+                            config={"display_name": f"{session_display_name} for {guest_id_input}"},
+                        )
+                        st.session_state.mb_session_name = session.response.name
+                        st.session_state.mb_guest_id = guest_id_input
+                        st.session_state.mb_conversation = []
+                        st.session_state.mb_event_count = 0
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to create session: {e}")
 
     # ── CHAT CONVERSATION ──
     if st.session_state.mb_session_name:
@@ -667,18 +692,19 @@ if st.session_state.mb_agent_engine_name:
     st.divider()
     with st.expander("Cleanup"):
         if st.button("Delete Agent Engine", key="mb_delete_engine"):
-            try:
-                client.agent_engines.delete(name=ae_name, force=True)
-            except Exception as e:
-                st.error(f"Delete failed: {e}")
-            else:
-                st.session_state.mb_agent_engine_name = None
-                st.session_state.mb_session_name = None
-                st.session_state.mb_guest_id = None
-                st.session_state.mb_conversation = []
-                st.session_state.mb_event_count = 0
-                st.session_state.pop("mb_engine_list", None)
-                st.session_state.pop("mb_selected_topics", None)
-                st.session_state.pop("mb_existing_memories", None)
-                st.success("Agent Engine deleted.")
-                st.rerun()
+            with st.spinner("Deleting Agent Engine..."):
+                try:
+                    client.agent_engines.delete(name=ae_name, force=True)
+                except Exception as e:
+                    st.error(f"Delete failed: {e}")
+                else:
+                    st.session_state.mb_agent_engine_name = None
+                    st.session_state.mb_session_name = None
+                    st.session_state.mb_guest_id = None
+                    st.session_state.mb_conversation = []
+                    st.session_state.mb_event_count = 0
+                    st.session_state.pop("mb_engine_list", None)
+                    st.session_state.pop("mb_selected_topics", None)
+                    st.session_state.pop("mb_existing_memories", None)
+                    st.success("Agent Engine deleted.")
+                    st.rerun()
