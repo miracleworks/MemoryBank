@@ -2,7 +2,8 @@
 A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent Engine SDK.
 
 ## Reference
-- [Colab notebook](https://colab.research.google.com/github/GoogleCloudPlatform/generative-ai/blob/main/agents/agent_engine/memory_bank/get_started_with_memory_bank.ipynb)
+- [Memory Bank on ADK Colab](https://colab.research.google.com/github/GoogleCloudPlatform/generative-ai/blob/main/agents/agent_engine/memory_bank/get_started_with_memory_bank_on_adk.ipynb)
+- [Memory Bank Colab](https://colab.research.google.com/github/GoogleCloudPlatform/generative-ai/blob/main/agents/agent_engine/memory_bank/get_started_with_memory_bank.ipynb)
 
 ## Prerequisites
 - Python 3.12+
@@ -28,17 +29,10 @@ A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent 
 
 ### Main Page — Memory Bank Workflow
 
-#### Step 1: Memory Bank Configuration
-- **Embedding Model**: Select from `text-embedding-005`, `text-embedding-004`, `text-multilingual-embedding-002`
-- **Generation Model**: Select from:
-  - `gemini-3.1-pro`, `gemini-3-flash`, `gemini-3.1-flash-lite` (preview)
-  - `gemini-2.5-pro`, `gemini-2.5-flash` (default), `gemini-2.5-flash-lite` (GA)
-  - `gemini-2.0-flash`, `gemini-2.0-flash-lite` (GA)
-
-#### Step 2: Agent Engine
+#### Step 1: Agent Engine
 Two modes via radio toggle:
 - **Select existing**: Lists all available Agent Engines in the project with a dropdown (display name + resource name). Includes a Refresh button to reload the list.
-- **Create new**: Provide an Engine Name (`display_name`) and provision a new Agent Engine with the Memory Bank config from Step 1.
+- **Create new**: Provide an Engine Name, select Embedding Model and Generation Model, then provision a new Agent Engine.
 - **Disconnect**: Detach from the current engine without deleting it.
 - API calls:
   - `client.agent_engines.list()`
@@ -47,13 +41,19 @@ Two modes via radio toggle:
 #### Existing Memories
 - Expandable section to retrieve previously stored memories by **User ID**
 - **Load Memories**: Fetches all memories scoped to the given user
+- Displays TTL info (created, expires, remaining time) when TTL is configured
 - **Delete All Memories**: Removes all memories for the user
 - API calls:
   - `client.agent_engines.memories.retrieve(name=..., scope={...})`
+  - `client.agent_engines.memories.get(name=...)` (for TTL timestamps)
   - `client.agent_engines.memories.delete(name=...)`
 
 #### Memory Bank Customization
-Combined configuration section for memory topics and TTL, applied together via a single **Apply Configuration** button.
+Combined configuration section for models, memory topics, and TTL — all applied together via a single **Apply Configuration** button.
+
+**Models** — Change the generation or embedding model after engine creation:
+- **Embedding Model**: `text-embedding-005` (default), `text-embedding-004`, `text-multilingual-embedding-002`
+- **Generation Model**: `gemini-2.5-flash` (default), plus `gemini-3.1-pro`, `gemini-3-flash`, `gemini-2.5-pro`, and others
 
 **Memory Topics** — Select which types of information Memory Bank should extract:
 - `USER_PERSONAL_INFO`: Names, relationships, hobbies, important dates
@@ -71,26 +71,28 @@ All topics are active by default. Selecting a subset restricts extraction to onl
   - `GenerateMemories (new) TTL`: Newly generated memories
   - `GenerateMemories (updated) TTL`: Updated memories during consolidation
 - Each TTL supports seconds, minutes, or hours for easy testing
-- API call: `client.agent_engines.update(name=..., config={...})` (topics + TTL sent together)
 
-#### Step 3: Create Session
+API call: `client.agent_engines.update(name=..., config={...})` (models + topics + TTL sent together)
+
+#### Step 2: Create Session
 - **User ID**: Text input for identifying the user in the session
 - **Session Display Name**: Text input for naming the session
+- **New Session**: Reset the current session to start fresh without disconnecting from the engine
 - API call: `client.agent_engines.sessions.create(name=..., user_id=..., config={...})`
 
-#### Step 4: Chat Conversation
+#### Step 3: Chat Conversation
 - **Memory-aware responses**: The model retrieves relevant memories (top 5 via similarity search) before generating each reply
 - **Load Sample Conversation**: Pre-populates a hotel check-in scenario (Emma Chen) with 8 turns
-- **Chat interface**: Scrollable message container with `st.chat_message` bubbles. Inline text input + Send button that clears after sending.
+- **Chat interface**: Scrollable message container with `st.chat_message` bubbles. Text input clears after sending via keyboard or button.
 - Both user and model turns are appended to the Memory Bank session via `sessions.events.append()`
-- New memories are not created automatically — use Step 5 to generate them
+- New memories are not created automatically — use Step 4 to generate them
 - API calls:
   - `client.agent_engines.sessions.events.append(name=..., author=..., ...)`
   - `client.agent_engines.memories.retrieve(name=..., scope={...}, similarity_search_params={...})`
 
-#### Step 5: Generate Memories
+#### Step 4: Generate Memories
 - Triggers memory generation using `direct_contents_source` with explicit `scope={"user_id": ...}` to respect topic customization
-- Displays extracted memories with NEW/UPDATED labels
+- Displays extracted memories with NEW/UPDATED labels and TTL timestamps
 - Performs both extraction (fact extraction from conversation) and consolidation (intelligent merge with existing memories)
 - Only extracts facts matching the active memory topics configured in the customization section
 - TTL configuration is applied automatically to generated memories
@@ -98,15 +100,20 @@ All topics are active by default. Selecting a subset restricts extraction to onl
   - `client.agent_engines.memories.generate(name=..., scope={...}, direct_contents_source={...}, config={...})`
   - `client.agent_engines.memories.get(name=...)`
 
-#### Step 6: Retrieve Memories
+#### Step 5: Retrieve Memories
 - **Scope-based**: Returns ALL memories for the user
 - **Similarity search**: Returns TOP K most relevant memories for a query
   - **Search Query**: Text input
   - **Top K**: Number input (1–20, default 3)
-  - Displays similarity scores alongside results
+  - Displays similarity scores and TTL info alongside results
 - API call: `client.agent_engines.memories.retrieve(name=..., scope={...}, similarity_search_params={...})`
 
 #### Cleanup
 - Expandable section with **Delete Agent Engine** button
 - Safely clears all session state after successful deletion
 - API call: `client.agent_engines.delete(name=..., force=True)`
+
+## UI Features
+- **Teal button theme**: All buttons styled with consistent teal color (`#0D9488`)
+- **Dancing brain spinner**: Custom animated brain emoji replaces default Streamlit spinner during loading operations
+- **All long operations have spinners**: Engine creation, session creation, memory generation, retrieval, deletion
