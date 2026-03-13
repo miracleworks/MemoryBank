@@ -52,6 +52,27 @@ Two modes via radio toggle:
   - `client.agent_engines.memories.retrieve(name=..., scope={...})`
   - `client.agent_engines.memories.delete(name=...)`
 
+#### Memory Bank Customization
+Combined configuration section for memory topics and TTL, applied together via a single **Apply Configuration** button.
+
+**Memory Topics** — Select which types of information Memory Bank should extract:
+- `USER_PERSONAL_INFO`: Names, relationships, hobbies, important dates
+- `USER_PREFERENCES`: Likes, dislikes, preferred styles, patterns
+- `KEY_CONVERSATION_DETAILS`: Milestones, conclusions, task outcomes
+- `EXPLICIT_INSTRUCTIONS`: Explicit remember/forget instructions from the user
+
+All topics are active by default. Selecting a subset restricts extraction to only those topics.
+
+**Memory TTL** — Set expiration times for memories (three modes):
+- **None**: Memories persist indefinitely (default)
+- **Default TTL**: Single duration applied to all create/update operations
+- **Granular TTL**: Per-operation durations:
+  - `CreateMemory TTL`: Manually created memories
+  - `GenerateMemories (new) TTL`: Newly generated memories
+  - `GenerateMemories (updated) TTL`: Updated memories during consolidation
+- Each TTL supports seconds, minutes, or hours for easy testing
+- API call: `client.agent_engines.update(name=..., config={...})` (topics + TTL sent together)
+
 #### Step 3: Create Session
 - **User ID**: Text input for identifying the user in the session
 - **Session Display Name**: Text input for naming the session
@@ -68,11 +89,13 @@ Two modes via radio toggle:
   - `client.agent_engines.memories.retrieve(name=..., scope={...}, similarity_search_params={...})`
 
 #### Step 5: Generate Memories
-- Triggers memory generation with the session as source
+- Triggers memory generation using `direct_contents_source` with explicit `scope={"user_id": ...}` to respect topic customization
 - Displays extracted memories with NEW/UPDATED labels
 - Performs both extraction (fact extraction from conversation) and consolidation (intelligent merge with existing memories)
+- Only extracts facts matching the active memory topics configured in the customization section
+- TTL configuration is applied automatically to generated memories
 - API calls:
-  - `client.agent_engines.memories.generate(name=..., vertex_session_source={...}, config={...})`
+  - `client.agent_engines.memories.generate(name=..., scope={...}, direct_contents_source={...}, config={...})`
   - `client.agent_engines.memories.get(name=...)`
 
 #### Step 6: Retrieve Memories
