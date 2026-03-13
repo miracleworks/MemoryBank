@@ -73,6 +73,18 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     border: 1px solid rgba(200, 205, 215, 0.4);
     padding: 4px;
 }
+
+/* --- Modern button theme (Teal) --- */
+div[data-testid="stButton"] button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    background-color: #0D9488 !important;
+    color: white !important;
+    border: none !important;
+}
+div[data-testid="stButton"] button:hover {
+    background-color: #0F766E !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -245,7 +257,7 @@ if st.session_state.mb_agent_engine_name:
                     st.markdown(f"**{i}.** {full.fact}  \n`{ttl_info}`")
                 else:
                     st.markdown(f"**{i}.** {full.fact}")
-            if st.button("Delete All Memories", key="mb_delete_all_memories", type="secondary"):
+            if st.button("Delete All Memories", key="mb_delete_all_memories"):
                 with st.spinner("Deleting all memories..."):
                     errors = 0
                     for mem_item in existing:
@@ -654,7 +666,7 @@ if st.session_state.mb_agent_engine_name:
     # ── CLEANUP ──
     st.divider()
     with st.expander("Cleanup"):
-        if st.button("Delete Agent Engine", key="mb_delete_engine", type="secondary"):
+        if st.button("Delete Agent Engine", key="mb_delete_engine"):
             try:
                 client.agent_engines.delete(name=ae_name, force=True)
             except Exception as e:
