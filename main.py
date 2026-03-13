@@ -40,7 +40,7 @@ def _format_memory_ttl(memory):
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION")
 
-st.set_page_config(page_title="Vertex AI Memory Bank", layout="wide")
+st.set_page_config(page_title="Memory Bank Playground", layout="wide")
 
 if not PROJECT_ID or not LOCATION:
     st.title("Configuration Required")
@@ -113,7 +113,7 @@ div[data-testid="stSpinner"] svg {
 """, unsafe_allow_html=True)
 
 # --- MAIN UI: MEMORY BANK ---
-st.subheader("Memory Bank Feature Tests")
+st.subheader("🧠 Memory Bank Playground")
 st.caption("Create a Memory Bank config, session, add conversation, generate & retrieve memories.")
 
 # Type aliases
@@ -141,7 +141,7 @@ GENERATION_MODELS = [
 # ── AGENT ENGINE: SELECT OR CREATE ──
 step2 = st.container(border=True)
 with step2:
-    st.markdown("### 2. Agent Engine")
+    st.markdown("### 1. Agent Engine")
 
     if st.session_state.mb_agent_engine_name:
         st.success(f"Agent Engine active: `{st.session_state.mb_agent_engine_name}`")
@@ -293,7 +293,7 @@ if st.session_state.mb_agent_engine_name:
 
     # ── MEMORY CUSTOMIZATION ──
     with st.container(border=True):
-        st.markdown("### Memory Bank Customization")
+        st.markdown("### 2. Memory Bank Customization")
 
         # --- Models ---
         st.markdown("**Models**")
@@ -433,7 +433,7 @@ if st.session_state.mb_agent_engine_name:
 
     # ── CREATE SESSION ──
     with st.container(border=True):
-        st.markdown("### 3. Create Session")
+        st.markdown("### 3. Session")
 
         if st.session_state.mb_session_name:
             col_sess, col_reset = st.columns([4, 1])
@@ -494,7 +494,7 @@ if st.session_state.mb_agent_engine_name:
             st.session_state.mb_event_count += 1
 
         with st.container(border=True):
-            st.markdown(f"### 4. Chat Conversation — `{st.session_state.mb_guest_id}`")
+            st.markdown(f"### 4. Chat — `{st.session_state.mb_guest_id}`")
             st.caption("Responses use existing memories for context. New memories are not created automatically — use Step 5 to generate them.")
 
             if st.button("Load Sample Conversation", key="mb_load_sample"):
@@ -604,7 +604,7 @@ if st.session_state.mb_agent_engine_name:
         # ── GENERATE MEMORIES ──
         if st.session_state.mb_conversation:
             with st.container(border=True):
-                st.markdown(f"### 5. Generate Memories — `{st.session_state.mb_guest_id}`")
+                st.markdown(f"### 5. Generate — `{st.session_state.mb_guest_id}`")
                 st.caption("Extracts facts from the conversation (extract + consolidation).")
 
                 if st.button("Generate Memories", key="mb_generate"):
@@ -646,7 +646,7 @@ if st.session_state.mb_agent_engine_name:
 
             # ── RETRIEVE MEMORIES ──
             with st.container(border=True):
-                st.markdown(f"### 6. Retrieve Memories — `{st.session_state.mb_guest_id}`")
+                st.markdown(f"### 6. Retrieve — `{st.session_state.mb_guest_id}`")
                 retrieval_method = st.radio(
                     "Retrieval Method",
                     ["Scope-based (all memories)", "Similarity search"],

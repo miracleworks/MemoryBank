@@ -1,4 +1,4 @@
-# Memory Bank Feature Demo
+# 🧠 Memory Bank Playground
 A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent Engine SDK.
 
 ## Reference
@@ -29,7 +29,7 @@ A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent 
 
 ### Main Page — Memory Bank Workflow
 
-#### Step 1: Agent Engine
+#### 1. Agent Engine
 Two modes via radio toggle:
 - **Select existing**: Lists all available Agent Engines in the project with a dropdown (display name + resource name). Includes a Refresh button to reload the list.
 - **Create new**: Provide an Engine Name, select Embedding Model and Generation Model, then provision a new Agent Engine.
@@ -38,8 +38,8 @@ Two modes via radio toggle:
   - `client.agent_engines.list()`
   - `client.agent_engines.create(config={...})`
 
-#### Existing Memories
-- Expandable section to retrieve previously stored memories by **User ID**
+#### Existing Memories (expandable)
+- Retrieve previously stored memories by **User ID**
 - **Load Memories**: Fetches all memories scoped to the given user
 - Displays TTL info (created, expires, remaining time) when TTL is configured
 - **Delete All Memories**: Removes all memories for the user
@@ -48,7 +48,7 @@ Two modes via radio toggle:
   - `client.agent_engines.memories.get(name=...)` (for TTL timestamps)
   - `client.agent_engines.memories.delete(name=...)`
 
-#### Memory Bank Customization
+#### 2. Memory Bank Customization
 Combined configuration section for models, memory topics, and TTL — all applied together via a single **Apply Configuration** button.
 
 **Models** — Change the generation or embedding model after engine creation:
@@ -74,23 +74,23 @@ All topics are active by default. Selecting a subset restricts extraction to onl
 
 API call: `client.agent_engines.update(name=..., config={...})` (models + topics + TTL sent together)
 
-#### Step 2: Create Session
+#### 3. Session
 - **User ID**: Text input for identifying the user in the session
 - **Session Display Name**: Text input for naming the session
 - **New Session**: Reset the current session to start fresh without disconnecting from the engine
 - API call: `client.agent_engines.sessions.create(name=..., user_id=..., config={...})`
 
-#### Step 3: Chat Conversation
+#### 4. Chat
 - **Memory-aware responses**: The model retrieves relevant memories (top 5 via similarity search) before generating each reply
 - **Load Sample Conversation**: Pre-populates a hotel check-in scenario (Emma Chen) with 8 turns
 - **Chat interface**: Scrollable message container with `st.chat_message` bubbles. Text input clears after sending via keyboard or button.
 - Both user and model turns are appended to the Memory Bank session via `sessions.events.append()`
-- New memories are not created automatically — use Step 4 to generate them
+- New memories are not created automatically — use Step 5 to generate them
 - API calls:
   - `client.agent_engines.sessions.events.append(name=..., author=..., ...)`
   - `client.agent_engines.memories.retrieve(name=..., scope={...}, similarity_search_params={...})`
 
-#### Step 4: Generate Memories
+#### 5. Generate
 - Triggers memory generation using `direct_contents_source` with explicit `scope={"user_id": ...}` to respect topic customization
 - Displays extracted memories with NEW/UPDATED labels and TTL timestamps
 - Performs both extraction (fact extraction from conversation) and consolidation (intelligent merge with existing memories)
@@ -100,7 +100,7 @@ API call: `client.agent_engines.update(name=..., config={...})` (models + topics
   - `client.agent_engines.memories.generate(name=..., scope={...}, direct_contents_source={...}, config={...})`
   - `client.agent_engines.memories.get(name=...)`
 
-#### Step 5: Retrieve Memories
+#### 6. Retrieve
 - **Scope-based**: Returns ALL memories for the user
 - **Similarity search**: Returns TOP K most relevant memories for a query
   - **Search Query**: Text input
@@ -108,8 +108,8 @@ API call: `client.agent_engines.update(name=..., config={...})` (models + topics
   - Displays similarity scores and TTL info alongside results
 - API call: `client.agent_engines.memories.retrieve(name=..., scope={...}, similarity_search_params={...})`
 
-#### Cleanup
-- Expandable section with **Delete Agent Engine** button
+#### Cleanup (expandable)
+- **Delete Agent Engine** button
 - Safely clears all session state after successful deletion
 - API call: `client.agent_engines.delete(name=..., force=True)`
 
