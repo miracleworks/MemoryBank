@@ -9,6 +9,33 @@ import os
 
 load_dotenv()
 
+
+def _format_memory_ttl(memory):
+    """Return a TTL info string if the memory has expiration data."""
+    expire = getattr(memory, "expire_time", None)
+    create = getattr(memory, "create_time", None)
+    if not expire:
+        return ""
+    parts = []
+    if create:
+        parts.append(f"Created: {create}")
+    parts.append(f"Expires: {expire}")
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    if hasattr(expire, "timestamp"):
+        remaining = expire - now
+        if remaining.total_seconds() > 0:
+            mins, secs = divmod(int(remaining.total_seconds()), 60)
+            hours, mins = divmod(mins, 60)
+            if hours > 0:
+                parts.append(f"Remaining: {hours}h {mins}m {secs}s")
+            elif mins > 0:
+                parts.append(f"Remaining: {mins}m {secs}s")
+            else:
+                parts.append(f"Remaining: {secs}s")
+        else:
+            parts.append("**Expired**")
+    return " | ".join(parts)
+
 # --- CONFIGURATION ---
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION")
@@ -209,7 +236,15 @@ if st.session_state.mb_agent_engine_name:
             st.info(f"Found {len(existing)} memories for user `{user_id}`")
             for i, mem_item in enumerate(existing, 1):
                 m = mem_item.memory if hasattr(mem_item, "memory") else mem_item
-                st.markdown(f"**{i}.** {m.fact}")
+                try:
+                    full = client.agent_engines.memories.get(name=m.name)
+                except Exception:
+                    full = m
+                ttl_info = _format_memory_ttl(full)
+                if ttl_info:
+                    st.markdown(f"**{i}.** {full.fact}  \n`{ttl_info}`")
+                else:
+                    st.markdown(f"**{i}.** {full.fact}")
             if st.button("Delete All Memories", key="mb_delete_all_memories", type="secondary"):
                 with st.spinner("Deleting all memories..."):
                     errors = 0
@@ -355,7 +390,16 @@ if st.session_state.mb_agent_engine_name:
         st.markdown("### 3. Create Session")
 
         if st.session_state.mb_session_name:
-            st.success(f"Session active: `{st.session_state.mb_session_name}` (user: `{st.session_state.mb_guest_id}`)")
+            col_sess, col_reset = st.columns([4, 1])
+            with col_sess:
+                st.success(f"Session active: `{st.session_state.mb_session_name}` (user: `{st.session_state.mb_guest_id}`)")
+            with col_reset:
+                if st.button("New Session", key="mb_reset_session", use_container_width=True):
+                    st.session_state.mb_session_name = None
+                    st.session_state.mb_guest_id = None
+                    st.session_state.mb_conversation = []
+                    st.session_state.mb_event_count = 0
+                    st.rerun()
         else:
             col_s1, col_s2, col_s3 = st.columns([2, 2, 1])
             with col_s1:
@@ -541,7 +585,11 @@ if st.session_state.mb_agent_engine_name:
                                         try:
                                             full = client.agent_engines.memories.get(name=gen_mem.memory.name)
                                             action_label = "NEW" if gen_mem.action == "CREATED" else "UPDATED"
-                                            st.markdown(f"**{i}. [{action_label}]** {full.fact}")
+                                            ttl_info = _format_memory_ttl(full)
+                                            if ttl_info:
+                                                st.markdown(f"**{i}. [{action_label}]** {full.fact}  \n`{ttl_info}`")
+                                            else:
+                                                st.markdown(f"**{i}. [{action_label}]** {full.fact}")
                                         except Exception:
                                             st.markdown(f"**{i}.** _(could not retrieve)_")
                             else:
@@ -594,6 +642,9 @@ if st.session_state.mb_agent_engine_name:
                                         st.write(f"**Fact:** {m.fact}")
                                         if score is not None:
                                             st.write(f"**Similarity Score:** {score:.4f}")
+                                        ttl_info = _format_memory_ttl(m)
+                                        if ttl_info:
+                                            st.write(f"**TTL:** {ttl_info}")
                                         st.code(f"ID: {m.name}")
                             else:
                                 st.info("No memories found.")
