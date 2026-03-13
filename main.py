@@ -102,6 +102,8 @@ with step2:
             st.session_state.mb_conversation = []
             st.session_state.mb_event_count = 0
             st.session_state.pop("mb_engine_list", None)
+            st.session_state.pop("mb_selected_topics", None)
+            st.session_state.pop("mb_existing_memories", None)
             st.rerun()
     else:
         engine_mode = st.radio(
@@ -222,6 +224,70 @@ if st.session_state.mb_agent_engine_name:
         elif existing is not None and user_id.strip() and not load_clicked:
             st.info(f"No existing memories found for user `{user_id}`.")
 
+    # ── MEMORY CUSTOMIZATION ──
+    with st.container(border=True):
+        st.markdown("### Memory Topics Customization")
+        st.caption(
+            "Choose which types of information Memory Bank should extract and persist. "
+            "By default, all topics are active. Selecting a subset restricts extraction to only those topics."
+        )
+
+        MANAGED_TOPICS = {
+            "USER_PERSONAL_INFO": "Personal information (names, relationships, hobbies, important dates)",
+            "USER_PREFERENCES": "Preferences (likes, dislikes, preferred styles, patterns)",
+            "KEY_CONVERSATION_DETAILS": "Key conversation details (milestones, conclusions, task outcomes)",
+            "EXPLICIT_INSTRUCTIONS": "Explicit remember/forget instructions from the user",
+        }
+
+        # Initialize selected topics in session state
+        if "mb_selected_topics" not in st.session_state:
+            st.session_state.mb_selected_topics = list(MANAGED_TOPICS.keys())
+
+        selected = []
+        cols = st.columns(2)
+        for i, (topic_key, topic_desc) in enumerate(MANAGED_TOPICS.items()):
+            with cols[i % 2]:
+                if st.checkbox(
+                    topic_desc,
+                    value=topic_key in st.session_state.mb_selected_topics,
+                    key=f"mb_topic_{topic_key}",
+                ):
+                    selected.append(topic_key)
+
+        if st.button("Apply Topic Customization", key="mb_apply_topics"):
+            if not selected:
+                st.warning("Select at least one topic.")
+            else:
+                with st.spinner("Updating Memory Bank configuration..."):
+                    try:
+                        memory_topics = [
+                            {"managed_memory_topic": {"managed_topic_enum": t}}
+                            for t in selected
+                        ]
+                        client.agent_engines.update(
+                            name=ae_name,
+                            config={
+                                "context_spec": {
+                                    "memory_bank_config": {
+                                        "customization_configs": [
+                                            {
+                                                "scope_keys": ["user_id"],
+                                                "memory_topics": memory_topics,
+                                            }
+                                        ],
+                                    }
+                                }
+                            },
+                        )
+                        st.session_state.mb_selected_topics = selected
+                        st.success(
+                            f"Updated: {len(selected)} topic(s) active — "
+                            + ", ".join(selected)
+                        )
+                    except Exception as e:
+                        st.error(f"Failed to update configuration: {e}")
+
+
     # ── CREATE SESSION ──
     with st.container(border=True):
         st.markdown("### 3. Create Session")
@@ -309,7 +375,6 @@ if st.session_state.mb_agent_engine_name:
             # Chat input — using text_input + button so it stays inline
             def _submit_message():
                 st.session_state.mb_pending_message = st.session_state.mb_chat_input
-                st.session_state.mb_chat_input = ""
 
             col_input, col_send = st.columns([5, 1])
             with col_input:
@@ -387,9 +452,19 @@ if st.session_state.mb_agent_engine_name:
                 if st.button("Generate Memories", key="mb_generate"):
                     with st.spinner("Generating memories from conversation..."):
                         try:
+                            events = [
+                                {
+                                    "content": {
+                                        "role": turn["role"],
+                                        "parts": [{"text": turn["message"]}],
+                                    }
+                                }
+                                for turn in st.session_state.mb_conversation
+                            ]
                             operation = client.agent_engines.memories.generate(
                                 name=ae_name,
-                                vertex_session_source={"session": st.session_state.mb_session_name},
+                                scope={"user_id": st.session_state.mb_guest_id},
+                                direct_contents_source={"events": events},
                                 config={"wait_for_completion": True},
                             )
                             if operation.response and operation.response.generated_memories:
@@ -473,5 +548,7 @@ if st.session_state.mb_agent_engine_name:
                 st.session_state.mb_conversation = []
                 st.session_state.mb_event_count = 0
                 st.session_state.pop("mb_engine_list", None)
+                st.session_state.pop("mb_selected_topics", None)
+                st.session_state.pop("mb_existing_memories", None)
                 st.success("Agent Engine deleted.")
                 st.rerun()
