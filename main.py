@@ -121,35 +121,22 @@ MemoryBankConfig = types.ReasoningEngineContextSpecMemoryBankConfig
 SimilaritySearchConfig = types.ReasoningEngineContextSpecMemoryBankConfigSimilaritySearchConfig
 GenerationConfig = types.ReasoningEngineContextSpecMemoryBankConfigGenerationConfig
 
-# ── CONFIG SECTION ──
-with st.container(border=True):
-    st.markdown("### 1. Memory Bank Configuration")
-    col_cfg1, col_cfg2 = st.columns(2)
-    with col_cfg1:
-        embedding_model = st.selectbox(
-            "Embedding Model",
-            [
-                "text-embedding-005",
-                "text-embedding-004",
-                "text-multilingual-embedding-002",
-            ],
-            index=0,
-        )
-    with col_cfg2:
-        generation_model = st.selectbox(
-            "Generation Model",
-            [
-                "gemini-3.1-pro",
-                "gemini-3-flash",
-                "gemini-3.1-flash-lite",
-                "gemini-2.5-pro",
-                "gemini-2.5-flash",
-                "gemini-2.5-flash-lite",
-                "gemini-2.0-flash",
-                "gemini-2.0-flash-lite",
-            ],
-            index=4,  # default to gemini-2.5-flash
-        )
+# ── MODEL SELECTION (used by engine creation and customization) ──
+EMBEDDING_MODELS = [
+    "text-embedding-005",
+    "text-embedding-004",
+    "text-multilingual-embedding-002",
+]
+GENERATION_MODELS = [
+    "gemini-3.1-pro",
+    "gemini-3-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+]
 
 # ── AGENT ENGINE: SELECT OR CREATE ──
 step2 = st.container(border=True)
@@ -211,6 +198,11 @@ with step2:
 
         else:
             engine_display_name = st.text_input("Engine Name", value="memory-bank-engine", key="mb_engine_name")
+            col_em, col_gm = st.columns(2)
+            with col_em:
+                embedding_model = st.selectbox("Embedding Model", EMBEDDING_MODELS, index=0, key="mb_create_embedding")
+            with col_gm:
+                generation_model = st.selectbox("Generation Model", GENERATION_MODELS, index=4, key="mb_create_generation")
             if st.button("Create Agent Engine", key="mb_create_engine"):
                 with st.spinner("Provisioning Agent Engine (this may take a few minutes)..."):
                     try:
@@ -302,6 +294,17 @@ if st.session_state.mb_agent_engine_name:
     # ── MEMORY CUSTOMIZATION ──
     with st.container(border=True):
         st.markdown("### Memory Bank Customization")
+
+        # --- Models ---
+        st.markdown("**Models**")
+        st.caption("Change the generation or embedding model for this engine.")
+        col_em2, col_gm2 = st.columns(2)
+        with col_em2:
+            embedding_model = st.selectbox("Embedding Model", EMBEDDING_MODELS, index=0, key="mb_cfg_embedding")
+        with col_gm2:
+            generation_model = st.selectbox("Generation Model", GENERATION_MODELS, index=4, key="mb_cfg_generation")
+
+        st.divider()
 
         # --- Topics ---
         st.markdown("**Memory Topics**")
@@ -395,6 +398,12 @@ if st.session_state.mb_agent_engine_name:
                             for t in selected
                         ]
                         mb_config = {
+                            "similarity_search_config": {
+                                "embedding_model": f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{embedding_model}"
+                            },
+                            "generation_config": {
+                                "model": f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{generation_model}"
+                            },
                             "customization_configs": [
                                 {
                                     "scope_keys": ["user_id"],
@@ -414,7 +423,8 @@ if st.session_state.mb_agent_engine_name:
                             },
                         )
                         st.session_state.mb_selected_topics = selected
-                        summary = f"Topics: {', '.join(selected)}"
+                        summary = f"Models: {generation_model}, {embedding_model}"
+                        summary += f" | Topics: {len(selected)}"
                         if ttl_config:
                             summary += f" | TTL: {ttl_mode}"
                         st.success(f"Configuration applied — {summary}")
