@@ -291,6 +291,17 @@ GENERATION_MODELS = [
     "gemini-2.0-flash-lite",
 ]
 
+SAMPLE_CONVERSATION = [
+    {"role": "user", "message": "Hi! I'm Emma Chen. I have a reservation for a deluxe room for three nights."},
+    {"role": "model", "message": "Welcome to our hotel, Ms. Chen! I have your reservation right here."},
+    {"role": "user", "message": "I'm vegetarian and lactose intolerant, so please note that for room service."},
+    {"role": "model", "message": "Absolutely, I've noted your dietary preferences. We have excellent vegetarian options."},
+    {"role": "user", "message": "I prefer a high floor room, away from the elevator. I'm a light sleeper."},
+    {"role": "model", "message": "I'll assign you a corner room on the 12th floor. It's one of our quietest locations."},
+    {"role": "user", "message": "Can I get extra pillows and a white noise machine? I prefer the room at 68F."},
+    {"role": "model", "message": "I'll have housekeeping bring extra pillows and a white noise machine, and set the thermostat to 68F."},
+]
+
 # --- MAIN UI ---
 st.subheader("🧠 Memory Bank Playground")
 
@@ -588,21 +599,11 @@ with tab1:
                 st.caption("Responses use existing memories for context. New memories are not created automatically — use Step 5 to generate them.")
 
                 if st.button("Load Sample Conversation", key="mb_load_sample"):
-                    sample = [
-                        {"role": "user", "message": "Hi! I'm Emma Chen. I have a reservation for a deluxe room for three nights."},
-                        {"role": "model", "message": "Welcome to our hotel, Ms. Chen! I have your reservation right here."},
-                        {"role": "user", "message": "I'm vegetarian and lactose intolerant, so please note that for room service."},
-                        {"role": "model", "message": "Absolutely, I've noted your dietary preferences. We have excellent vegetarian options."},
-                        {"role": "user", "message": "I prefer a high floor room, away from the elevator. I'm a light sleeper."},
-                        {"role": "model", "message": "I'll assign you a corner room on the 12th floor. It's one of our quietest locations."},
-                        {"role": "user", "message": "Can I get extra pillows and a white noise machine? I prefer the room at 68F."},
-                        {"role": "model", "message": "I'll have housekeeping bring extra pillows and a white noise machine, and set the thermostat to 68F."},
-                    ]
                     with st.spinner("Appending sample conversation..."):
                         try:
-                            for turn in sample:
+                            for turn in SAMPLE_CONVERSATION:
                                 _append_event(turn["role"], turn["message"])
-                            st.session_state.mb_conversation.extend(sample)
+                            st.session_state.mb_conversation.extend(SAMPLE_CONVERSATION)
                             st.rerun()
                         except Exception as e:
                             st.error(f"Failed to load sample: {e}")
@@ -1247,6 +1248,38 @@ with tab2:
                     f"Retrieval: {st.session_state.mb_adk_retrieval} | "
                     f"Auto-gen: {st.session_state.mb_adk_auto_gen}"
                 )
+
+                if st.button("Load Sample Conversation", key="mb_adk_load_sample"):
+                    user_turns = [t for t in SAMPLE_CONVERSATION if t["role"] == "user"]
+                    total = len(user_turns)
+                    progress = st.progress(0, text=f"Processing turn 1/{total} through agent...")
+                    try:
+                        runner = st.session_state.mb_adk_runner
+                        user_idx = 0
+                        for turn in SAMPLE_CONVERSATION:
+                            if turn["role"] == "user":
+                                user_idx += 1
+                                progress.progress(
+                                    user_idx / total,
+                                    text=f"Processing turn {user_idx}/{total}: \"{turn['message'][:50]}...\"",
+                                )
+                                content = Content(
+                                    role="user",
+                                    parts=[Part(text=turn["message"])],
+                                )
+                                async def _run_sample_turn():
+                                    async for event in runner.run_async(
+                                        user_id=adk_user_id,
+                                        session_id=st.session_state.mb_adk_session_id,
+                                        new_message=content,
+                                    ):
+                                        pass
+                                _run_async(_run_sample_turn())
+                            st.session_state.mb_adk_conversation.append(turn)
+                        progress.progress(1.0, text="Sample conversation loaded!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to load sample: {e}")
 
                 # Chat interface
                 adk_chat_container = st.container(height=450)
