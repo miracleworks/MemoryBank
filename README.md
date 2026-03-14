@@ -26,6 +26,7 @@ A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent 
 The app has two tabs sharing the same engine pool:
 
 ### Tab 1 — Vertex AI Agent Engine
+demonstrates how to make API calls directly to Vertex AI Agent Engine Sessions and Memory Bank using the Vertex AI Agent Engine SDK. Use the Vertex AI Agent Engine SDK if you don't want an agent framework to orchestrate calls for you, or you want to integrate Sessions and Memory Bank with agent frameworks other than Agent Development Kit (ADK).
 
 #### 1. Agent Engine
 Two modes via radio toggle:
@@ -112,18 +113,21 @@ API call: `client.agent_engines.update(name=..., config={...})` (models + topics
 - API call: `client.agent_engines.delete(name=..., force=True)`
 
 ### Tab 2 — Agent Development Kit
+demonstrates how you can use Memory Bank with ADK to manage long-term memories. After you configure your Agent Development Kit (ADK) agent to use Memory Bank, your agent orchestrates calls to Memory Bank to manage long-term memories for you.
 
-Build and test ADK agents with configurable memory retrieval and generation strategies. Shares the same engine pool as Tab 1.
+Shares the same engine pool as Tab 1.
 
 > **Scope note:** Tab 2 uses ADK's `VertexAiMemoryBankService`, which always scopes memories to `{user_id, app_name}`. Memories created in Tab 1 (scoped to `{user_id}` only) are in a different scope and won't be visible here. Use Tab 2's Existing Memories panel to verify what's available before chatting.
 
 #### UI Sections
 
-##### 1. Engine Connection
-- Select an existing engine from the dropdown and click **Connect**
-- Defaults to Tab 1's engine if one is selected
-- **Disconnect** to detach and reset all ADK state
-- **Refresh list** to reload available engines
+##### 1. Agent Engine
+Same UI as Tab 1 — radio toggle between **Select existing** and **Create new**:
+- **Select existing**: Lists available engines, click **Use this Engine** to connect
+- **Create new**: Provide an Engine Name, select Embedding Model and Generation Model, then provision a new Agent Engine
+- **Disconnect**: Detach and reset all ADK state (runner, session, conversation)
+- **Refresh list**: Reload available engines
+- Both tabs share the same engine list cache
 
 ##### Existing Memories (expandable)
 - Check what memories exist for a given `{user_id, app_name}` scope before chatting

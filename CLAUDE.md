@@ -17,7 +17,7 @@ The app uses `st.tabs()` with two tabs sharing the same `vertexai.Client` and en
 - Cleanup (expandable) — delete engine
 
 ### Tab 2: Agent Development Kit
-1. Engine Connection — shared engine pool, independent selection (`mb_adk_engine_name`)
+1. Agent Engine — shared `_render_engine_section()` with Tab 1 (select/create), independent state (`mb_adk_engine_name`)
 2. Agent Configuration — model, agent name, system instruction
 3. Memory Configuration — retrieval strategy (Preload `PreloadMemoryTool` / Tool-based `LoadMemoryTool` / Custom callback / None), auto-generate mode, scope keys
 4. Active Callbacks (expandable) — read-only summary of which callbacks are active
@@ -40,6 +40,7 @@ The app uses `st.tabs()` with two tabs sharing the same `vertexai.Client` and en
 - Uses `vertexai.Client` for all API calls (not the older `aiplatform` init pattern)
 - Memory Bank types are aliased from `vertexai.types` (e.g., `MemoryBankConfig`, `SimilaritySearchConfig`, `GenerationConfig`)
 - Agent engines are selected/created through the UI — no hardcoded ENGINE_ID
+- `_render_engine_section(key_prefix, engine_state_key, on_disconnect)` is shared between both tabs for engine select/create parity
 - Chat responses use similarity search to retrieve top 5 relevant memories as context before generating model replies
 - Memory generation uses `direct_contents_source` with explicit scope (not `vertex_session_source`) to ensure topic customization is respected
 - Models, memory topics, and TTL config are applied together in a single `agent_engines.update()` call to avoid overwriting each other
