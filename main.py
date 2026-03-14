@@ -23,6 +23,99 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
 os.environ.pop("GOOGLE_API_KEY", None)
 
 
+def _render_engine_section(key_prefix, engine_state_key, on_disconnect):
+    """Render the Agent Engine select/create section. Used by both tabs."""
+    with st.container(border=True):
+        st.markdown("### 1. Agent Engine")
+
+        if st.session_state[engine_state_key]:
+            st.success(f"Agent Engine active: `{st.session_state[engine_state_key]}`")
+            if st.button("Disconnect", key=f"{key_prefix}_disconnect_engine"):
+                on_disconnect()
+                st.rerun()
+        else:
+            engine_mode = st.radio(
+                "Engine Source",
+                ["Select existing", "Create new"],
+                horizontal=True,
+                key=f"{key_prefix}_engine_mode",
+            )
+
+            if engine_mode == "Select existing":
+                if st.button("Refresh list", key=f"{key_prefix}_refresh_engines"):
+                    st.session_state.pop("mb_engine_list", None)
+                    st.rerun()
+
+                if "mb_engine_list" not in st.session_state:
+                    with st.spinner("Loading agent engines..."):
+                        try:
+                            engines = list(client.agent_engines.list())
+                            st.session_state.mb_engine_list = engines
+                        except Exception as e:
+                            st.error(f"Failed to list engines: {e}")
+                            st.session_state.mb_engine_list = []
+
+                engines = st.session_state.get("mb_engine_list", [])
+                if engines:
+                    engine_options = {}
+                    for eng in engines:
+                        res = eng.api_resource
+                        label = f"{res.display_name or 'Unnamed'} — {res.name}"
+                        engine_options[label] = res.name
+                    col_sel, col_use = st.columns([3, 1])
+                    with col_sel:
+                        selected_label = st.selectbox(
+                            "Available Engines", list(engine_options.keys()),
+                            key=f"{key_prefix}_engine_select",
+                        )
+                    with col_use:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("Use this Engine", key=f"{key_prefix}_use_engine", use_container_width=True):
+                            st.session_state[engine_state_key] = engine_options[selected_label]
+                            st.session_state.pop("mb_engine_list", None)
+                            st.rerun()
+                else:
+                    st.info("No agent engines found. Create a new one.")
+
+            else:
+                engine_display_name = st.text_input(
+                    "Engine Name", value="memory-bank-engine",
+                    key=f"{key_prefix}_engine_name",
+                )
+                col_em, col_gm = st.columns(2)
+                with col_em:
+                    create_embedding = st.selectbox(
+                        "Embedding Model", EMBEDDING_MODELS, index=0,
+                        key=f"{key_prefix}_create_embedding",
+                    )
+                with col_gm:
+                    create_generation = st.selectbox(
+                        "Generation Model", GENERATION_MODELS, index=4,
+                        key=f"{key_prefix}_create_generation",
+                    )
+                if st.button("Create Agent Engine", key=f"{key_prefix}_create_engine"):
+                    with st.spinner("Provisioning Agent Engine (this may take a few minutes)..."):
+                        try:
+                            mb_config = MemoryBankConfig(
+                                similarity_search_config=SimilaritySearchConfig(
+                                    embedding_model=f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{create_embedding}"
+                                ),
+                                generation_config=GenerationConfig(
+                                    model=f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{create_generation}"
+                                ),
+                            )
+                            ae = client.agent_engines.create(
+                                config={
+                                    "display_name": engine_display_name,
+                                    "context_spec": {"memory_bank_config": mb_config},
+                                }
+                            )
+                            st.session_state[engine_state_key] = ae.api_resource.name
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to create Agent Engine: {e}")
+
+
 def _run_async(coro):
     """Run an async coroutine from synchronous Streamlit context."""
     try:
@@ -210,91 +303,17 @@ with tab1:
     st.caption("Demonstrates how to make API calls directly to Vertex AI Agent Engine Sessions and Memory Bank using the Vertex AI Agent Engine SDK.")
 
     # ── AGENT ENGINE: SELECT OR CREATE ──
-    step2 = st.container(border=True)
-    with step2:
-        st.markdown("### 1. Agent Engine")
+    def _tab1_disconnect():
+        st.session_state.mb_agent_engine_name = None
+        st.session_state.mb_session_name = None
+        st.session_state.mb_guest_id = None
+        st.session_state.mb_conversation = []
+        st.session_state.mb_event_count = 0
+        st.session_state.pop("mb_engine_list", None)
+        st.session_state.pop("mb_selected_topics", None)
+        st.session_state.pop("mb_existing_memories", None)
 
-        if st.session_state.mb_agent_engine_name:
-            st.success(f"Agent Engine active: `{st.session_state.mb_agent_engine_name}`")
-            if st.button("Disconnect", key="mb_disconnect_engine"):
-                st.session_state.mb_agent_engine_name = None
-                st.session_state.mb_session_name = None
-                st.session_state.mb_guest_id = None
-                st.session_state.mb_conversation = []
-                st.session_state.mb_event_count = 0
-                st.session_state.pop("mb_engine_list", None)
-                st.session_state.pop("mb_selected_topics", None)
-                st.session_state.pop("mb_existing_memories", None)
-                st.rerun()
-        else:
-            engine_mode = st.radio(
-                "Engine Source",
-                ["Select existing", "Create new"],
-                horizontal=True,
-                key="mb_engine_mode",
-            )
-
-            if engine_mode == "Select existing":
-                if st.button("Refresh list", key="mb_refresh_engines"):
-                    st.session_state.pop("mb_engine_list", None)
-                    st.rerun()
-
-                if "mb_engine_list" not in st.session_state:
-                    with st.spinner("Loading agent engines..."):
-                        try:
-                            engines = list(client.agent_engines.list())
-                            st.session_state.mb_engine_list = engines
-                        except Exception as e:
-                            st.error(f"Failed to list engines: {e}")
-                            st.session_state.mb_engine_list = []
-
-                engines = st.session_state.get("mb_engine_list", [])
-                if engines:
-                    engine_options = {}
-                    for eng in engines:
-                        res = eng.api_resource
-                        label = f"{res.display_name or 'Unnamed'} — {res.name}"
-                        engine_options[label] = res.name
-                    col_sel, col_use = st.columns([3, 1])
-                    with col_sel:
-                        selected_label = st.selectbox("Available Engines", list(engine_options.keys()), key="mb_engine_select")
-                    with col_use:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        if st.button("Use this Engine", key="mb_use_engine", use_container_width=True):
-                            st.session_state.mb_agent_engine_name = engine_options[selected_label]
-                            st.session_state.pop("mb_engine_list", None)
-                            st.rerun()
-                else:
-                    st.info("No agent engines found. Create a new one.")
-
-            else:
-                engine_display_name = st.text_input("Engine Name", value="memory-bank-engine", key="mb_engine_name")
-                col_em, col_gm = st.columns(2)
-                with col_em:
-                    embedding_model = st.selectbox("Embedding Model", EMBEDDING_MODELS, index=0, key="mb_create_embedding")
-                with col_gm:
-                    generation_model = st.selectbox("Generation Model", GENERATION_MODELS, index=4, key="mb_create_generation")
-                if st.button("Create Agent Engine", key="mb_create_engine"):
-                    with st.spinner("Provisioning Agent Engine (this may take a few minutes)..."):
-                        try:
-                            mb_config = MemoryBankConfig(
-                                similarity_search_config=SimilaritySearchConfig(
-                                    embedding_model=f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{embedding_model}"
-                                ),
-                                generation_config=GenerationConfig(
-                                    model=f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{generation_model}"
-                                ),
-                            )
-                            ae = client.agent_engines.create(
-                                config={
-                                    "display_name": engine_display_name,
-                                    "context_spec": {"memory_bank_config": mb_config},
-                                }
-                            )
-                            st.session_state.mb_agent_engine_name = ae.api_resource.name
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed to create Agent Engine: {e}")
+    _render_engine_section("mb", "mb_agent_engine_name", _tab1_disconnect)
 
     # Only show remaining steps when engine exists
     if st.session_state.mb_agent_engine_name:
@@ -797,67 +816,20 @@ with tab1:
 with tab2:
     st.caption("Demonstrates how you can use Memory Bank with ADK to manage long-term memories. After you configure your Agent Development Kit (ADK) agent to use Memory Bank, your agent orchestrates calls to Memory Bank to manage long-term memories for you.")
 
-    # ── 1. ENGINE CONNECTION ──
-    with st.container(border=True):
-        st.markdown("### 1. Engine Connection")
+    # ── 1. AGENT ENGINE ──
+    def _tab2_disconnect():
+        st.session_state.mb_adk_engine_name = None
+        st.session_state.mb_adk_runner = None
+        st.session_state.mb_adk_config_hash = None
+        st.session_state.mb_adk_session_id = None
+        st.session_state.mb_adk_conversation = []
+        st.session_state.mb_adk_turn_debug = []
+        st.session_state.mb_adk_session_service = None
+        st.session_state.mb_adk_memory_service = None
+        st.session_state.pop("mb_engine_list", None)
+        st.session_state.pop("mb_adk_existing_memories", None)
 
-        if st.session_state.mb_adk_engine_name:
-            st.success(f"Connected: `{st.session_state.mb_adk_engine_name}`")
-            if st.button("Disconnect", key="mb_adk_disconnect_engine"):
-                st.session_state.mb_adk_engine_name = None
-                st.session_state.mb_adk_runner = None
-                st.session_state.mb_adk_config_hash = None
-                st.session_state.mb_adk_session_id = None
-                st.session_state.mb_adk_conversation = []
-                st.session_state.mb_adk_turn_debug = []
-                st.session_state.mb_adk_session_service = None
-                st.session_state.mb_adk_memory_service = None
-                st.rerun()
-        else:
-            if st.button("Refresh list", key="mb_adk_refresh_engines"):
-                st.session_state.pop("mb_engine_list", None)
-                st.rerun()
-
-            if "mb_engine_list" not in st.session_state:
-                with st.spinner("Loading agent engines..."):
-                    try:
-                        engines = list(client.agent_engines.list())
-                        st.session_state.mb_engine_list = engines
-                    except Exception as e:
-                        st.error(f"Failed to list engines: {e}")
-                        st.session_state.mb_engine_list = []
-
-            engines = st.session_state.get("mb_engine_list", [])
-            if engines:
-                engine_options = {}
-                for eng in engines:
-                    res = eng.api_resource
-                    label = f"{res.display_name or 'Unnamed'} — {res.name}"
-                    engine_options[label] = res.name
-
-                # Default to Tab 1's engine if set
-                default_idx = 0
-                if st.session_state.mb_agent_engine_name:
-                    for i, v in enumerate(engine_options.values()):
-                        if v == st.session_state.mb_agent_engine_name:
-                            default_idx = i
-                            break
-
-                col_sel, col_use = st.columns([3, 1])
-                with col_sel:
-                    selected_label = st.selectbox(
-                        "Available Engines", list(engine_options.keys()),
-                        index=default_idx, key="mb_adk_engine_select",
-                    )
-                with col_use:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    if st.button("Connect", key="mb_adk_use_engine", use_container_width=True):
-                        st.session_state.mb_adk_engine_name = engine_options[selected_label]
-                        st.session_state.pop("mb_engine_list", None)
-                        st.rerun()
-            else:
-                st.info(
-                    "No agent engines found. Create one in the Vertex AI Agent Engine tab.")
+    _render_engine_section("mb_adk", "mb_adk_engine_name", _tab2_disconnect)
 
     # Only show remaining sections when engine is connected
     adk_engine_name = st.session_state.mb_adk_engine_name
