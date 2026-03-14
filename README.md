@@ -158,12 +158,17 @@ Same UI as Tab 1 — radio toggle between **Select existing** and **Create new**
 | **After each turn (full session)**      | `after_agent_callback` sends the entire session to `add_session_to_memory`.              | Better context for extraction, but cost grows with session length. Non-blocking. |
 | **After each turn (last message only)** | `before_agent_callback` sends only the latest user message via `direct_contents_source`. | Lower cost, but loses conversational context. Non-blocking.                      |
 
+**Active Callbacks** — displayed inline below the retrieval/auto-generate selections (no separate section or heading). Dynamically updates as you change options:
+- Preload or Tool-based → `memory_service` — `VertexAiMemoryBankService`
+- Custom callback → `before_model_callback` — retrieves memories via Agent Engine SDK and injects into system instruction
+- Auto-gen full session → `after_agent_callback` — sends full session to `add_session_to_memory`
+- Auto-gen last message → `before_agent_callback` — sends latest user message via `direct_contents_source`
+- `after_tool_callback` — always active (logs tool calls for the transparency panel)
+- If retrieval=None and auto-gen=Off → shows "Baseline mode" info message instead of the bullet list
+
 **Scope Configuration**: Both `user_id` and `app_name` are always included in the scope. The **App Name** value (default: `memory_playground`) determines the `app_name` scope key.
 
-##### 4. Active Callbacks (expandable)
-Read-only summary showing which ADK callbacks are active based on your configuration choices above. No extra configuration needed.
-
-##### 5. Session & Chat
+##### 4. Session & Chat
 - **User ID**: Identifies the user for memory scoping
 - **Build Agent**: Constructs the `LlmAgent` + `Runner` + `VertexAiMemoryBankService` from current config. Must be clicked before chatting. Auto-rebuilds if config changes.
 - **New Session**: Creates a fresh ADK session (clears conversation but keeps the agent)
