@@ -1,5 +1,5 @@
 # 🧠 Memory Bank Playground
-A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent Engine SDK.
+A Streamlit app demonstrating Vertex AI Memory Bank using both the Agent Engine SDK and the Agent Development Kit (ADK).
 
 ## Prerequisites
 - Python 3.12+
