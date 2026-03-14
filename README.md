@@ -1,10 +1,6 @@
 # 🧠 Memory Bank Playground
 A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent Engine SDK.
 
-## Reference
-- [Memory Bank on ADK Colab](https://colab.research.google.com/github/GoogleCloudPlatform/generative-ai/blob/main/agents/agent_engine/memory_bank/get_started_with_memory_bank_on_adk.ipynb)
-- [Memory Bank Colab](https://colab.research.google.com/github/GoogleCloudPlatform/generative-ai/blob/main/agents/agent_engine/memory_bank/get_started_with_memory_bank.ipynb)
-
 ## Prerequisites
 - Python 3.12+
 - A GCP project with the Vertex AI API enabled
@@ -27,7 +23,9 @@ A Streamlit app demonstrating the Vertex AI Memory Bank feature using the Agent 
 
 ## App Structure
 
-### Main Page — Memory Bank Workflow
+The app has two tabs sharing the same engine pool:
+
+### Tab 1 — Vertex AI Agent Engine
 
 #### 1. Agent Engine
 Two modes via radio toggle:
@@ -112,6 +110,121 @@ API call: `client.agent_engines.update(name=..., config={...})` (models + topics
 - **Delete Agent Engine** button
 - Safely clears all session state after successful deletion
 - API call: `client.agent_engines.delete(name=..., force=True)`
+
+### Tab 2 — Agent Development Kit
+
+Build and test ADK agents with configurable memory retrieval and generation strategies. Shares the same engine pool as Tab 1.
+
+> **Scope note:** Tab 2 uses ADK's `VertexAiMemoryBankService`, which always scopes memories to `{user_id, app_name}`. Memories created in Tab 1 (scoped to `{user_id}` only) are in a different scope and won't be visible here. Use Tab 2's Existing Memories panel to verify what's available before chatting.
+
+#### UI Sections
+
+##### 1. Engine Connection
+- Select an existing engine from the dropdown and click **Connect**
+- Defaults to Tab 1's engine if one is selected
+- **Disconnect** to detach and reset all ADK state
+- **Refresh list** to reload available engines
+
+##### Existing Memories (expandable)
+- Check what memories exist for a given `{user_id, app_name}` scope before chatting
+- Both **User ID** and **App Name** are required (matches the scope ADK uses)
+- Displays memories with TTL info, with option to **Delete All**
+
+##### 2. Agent Configuration
+- **Model**: Generation model for the ADK agent
+- **Agent Name**: Internal name for the `LlmAgent` (default: `memory_agent`)
+- **System Instruction**: The agent's base system prompt
+
+##### 3. Memory Configuration
+
+**Retrieval Strategy** — how the agent accesses memories each turn:
+
+| Strategy                          | How it works                                                                                                                                                      | When to use                                                           |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Preload — `PreloadMemoryTool`** | Silently runs similarity search using the user's message and injects matching memories into the system instruction before every model call. No visible tool call. | Default choice. Good for always-on memory context.                    |
+| **Tool-based — `LoadMemoryTool`** | Available as a tool the agent can call. The agent decides whether to invoke it based on the conversation. Shows as a tool call in transparency.                   | When you want the agent to selectively use memory only when relevant. |
+| **Custom callback**               | `before_model_callback` retrieves all memories for the scope via Agent Engine SDK (no similarity search). Lower latency.                                          | When you want all memories loaded without similarity ranking.         |
+| **None**                          | No memory retrieval at all.                                                                                                                                       | Baseline comparison to see how the agent behaves without memory.      |
+
+**Auto-Generate Memories** — when to automatically create memories from conversation:
+
+| Mode                                    | How it works                                                                             | Trade-offs                                                                       |
+| --------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Off**                                 | No automatic generation.                                                                 | Use when testing retrieval only, or generating manually in Tab 1.                |
+| **After each turn (full session)**      | `after_agent_callback` sends the entire session to `add_session_to_memory`.              | Better context for extraction, but cost grows with session length. Non-blocking. |
+| **After each turn (last message only)** | `before_agent_callback` sends only the latest user message via `direct_contents_source`. | Lower cost, but loses conversational context. Non-blocking.                      |
+
+**Scope Configuration**: Both `user_id` and `app_name` are always included in the scope. The **App Name** value (default: `memory_playground`) determines the `app_name` scope key.
+
+##### 4. Active Callbacks (expandable)
+Read-only summary showing which ADK callbacks are active based on your configuration choices above. No extra configuration needed.
+
+##### 5. Session & Chat
+- **User ID**: Identifies the user for memory scoping
+- **Build Agent**: Constructs the `LlmAgent` + `Runner` + `VertexAiMemoryBankService` from current config. Must be clicked before chatting. Auto-rebuilds if config changes.
+- **New Session**: Creates a fresh ADK session (clears conversation but keeps the agent)
+- **Chat interface**: Scrollable message container with chat bubbles
+- **Last Turn Details** (expandable, below chat): Shows what happened during the most recent turn:
+  - System instruction sent to model (with any injected memories)
+  - Memories retrieved (for Custom callback mode)
+  - Tool calls made (for Tool-based mode)
+  - Whether auto-generate was triggered
+
+#### Walkthrough: Testing Each Feature
+
+##### Getting started
+1. **Create an engine** in Tab 1 (or use an existing one)
+2. Switch to **Tab 2** and **Connect** to the same engine
+3. Enter a **User ID** (e.g., `testuser`)
+
+##### Testing Preload (auto)
+1. First, create some memories:
+   - Set Retrieval to **None**, Auto-Generate to **After each turn (full session)**
+   - Click **Build Agent**
+   - Chat: `"Hi, I'm Alex. I love rock climbing and I'm allergic to peanuts."`
+   - Wait a few seconds for memory generation to complete in the background
+2. Verify memories exist:
+   - Open **Existing Memories**, enter the same User ID and App Name, click **Load Memories**
+   - You should see extracted facts like "Alex loves rock climbing"
+3. Test retrieval:
+   - Set Retrieval to **Preload (auto)**, Auto-Generate to **Off**
+   - Click **Build Agent**, then **New Session** (fresh session with no history)
+   - Ask: `"What do you know about me?"`
+   - The agent should answer using the stored memories
+   - Check **Last Turn Details** — the system instruction should contain the injected memories
+
+##### Testing Tool-based (agent decides)
+1. Ensure memories exist (follow step 1-2 above)
+2. Set Retrieval to **Tool-based (agent decides)**, Auto-Generate to **Off**
+3. Click **Build Agent**, then **New Session**
+4. Ask: `"What do you know about me?"` — agent should call `LoadMemoryTool`
+5. Ask: `"Hi!"` — agent may skip the tool (not needed for a greeting)
+6. Check **Last Turn Details** for tool call logs
+
+##### Testing Custom callback
+1. Ensure memories exist (follow step 1-2 above)
+2. Set Retrieval to **Custom callback**, Auto-Generate to **Off**
+3. Click **Build Agent**, then **New Session**
+4. Ask: `"What do you know about me?"`
+5. Check **Last Turn Details** — should show all memories retrieved via scope (no similarity search) and the augmented system instruction
+
+##### Testing None (baseline)
+1. Set Retrieval to **None**, Auto-Generate to **Off**
+2. Click **Build Agent**, then **New Session**
+3. Ask: `"What do you know about me?"` — agent should have no memory context
+4. Compare the response to the other strategies
+
+##### Testing Auto-Generate modes
+1. Set Auto-Generate to **After each turn (full session)** or **After each turn (last message only)**
+2. Chat with personal information: `"Remember that I prefer window seats"`
+3. Open **Existing Memories** and **Load Memories** — the new fact should appear after a few seconds
+4. Click **New Session** and ask the agent about your preferences — it should recall the information
+
+##### Comparing strategies
+To compare how different strategies affect responses:
+1. Generate memories once with a rich conversation
+2. For each strategy: set it, **Build Agent**, **New Session**, ask the same question
+3. Compare responses and **Last Turn Details** across strategies
 
 ## UI Features
 - **Teal button theme**: All buttons styled with consistent teal color (`#0D9488`)
