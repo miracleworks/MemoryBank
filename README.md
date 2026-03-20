@@ -119,7 +119,7 @@ Shares the same engine pool as Tab 1.
 
 > **Scope note:** Tab 2 uses ADK's `VertexAiMemoryBankService`, which always scopes memories to `{user_id, app_name}`. Memories created in Tab 1 (scoped to `{user_id}` only) are in a different scope and won't be visible here. Use Tab 2's Existing Memories panel to verify what's available before chatting.
 
-### Agent Engine Usage in ADK Tab
+#### Agent Engine Usage in ADK Tab
 
 > **Important Concept:** In Tab 2 (Agent Development Kit), the agent is run locally using ADK’s `LlmAgent` and `Runner`. The Agent Engine is **not** used to execute the agent itself. Instead, the Agent Engine is leveraged for memory management via the `VertexAiMemoryBankService`. This separation allows flexible agent orchestration while utilizing Google’s managed memory infrastructure.
 
