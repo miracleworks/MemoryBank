@@ -26,7 +26,7 @@ A Streamlit app demonstrating Vertex AI Memory Bank using both the Agent Engine 
 The app has two tabs sharing the same engine pool:
 
 ### Tab 1 — Vertex AI Agent Engine
-demonstrates how to make API calls directly to Vertex AI Agent Engine Sessions and Memory Bank using the Vertex AI Agent Engine SDK. Use the Vertex AI Agent Engine SDK if you don't want an agent framework to orchestrate calls for you, or you want to integrate Sessions and Memory Bank with agent frameworks other than Agent Development Kit (ADK).
+Demonstrates how to make API calls directly to Vertex AI Agent Engine Sessions and Memory Bank using the Vertex AI Agent Engine SDK. Use the Vertex AI Agent Engine SDK if you don't want an agent framework to orchestrate calls for you, or you want to integrate Sessions and Memory Bank with agent frameworks other than Agent Development Kit (ADK).
 
 #### 1. Agent Engine
 Two modes via radio toggle:
@@ -113,11 +113,35 @@ API call: `client.agent_engines.update(name=..., config={...})` (models + topics
 - API call: `client.agent_engines.delete(name=..., force=True)`
 
 ### Tab 2 — Agent Development Kit
-demonstrates how you can use Memory Bank with ADK to manage long-term memories. After you configure your Agent Development Kit (ADK) agent to use Memory Bank, your agent orchestrates calls to Memory Bank to manage long-term memories for you.
+Demonstrates how you can use Memory Bank with ADK to manage long-term memories. After you configure your Agent Development Kit (ADK) agent to use Memory Bank, your agent orchestrates calls to Memory Bank to manage long-term memories for you.
 
 Shares the same engine pool as Tab 1.
 
 > **Scope note:** Tab 2 uses ADK's `VertexAiMemoryBankService`, which always scopes memories to `{user_id, app_name}`. Memories created in Tab 1 (scoped to `{user_id}` only) are in a different scope and won't be visible here. Use Tab 2's Existing Memories panel to verify what's available before chatting.
+
+### Agent Engine Usage in ADK Tab
+
+> **Important Concept:** In Tab 2 (Agent Development Kit), the agent is run locally using ADK’s `LlmAgent` and `Runner`. The Agent Engine is **not** used to execute the agent itself. Instead, the Agent Engine is leveraged for memory management via the `VertexAiMemoryBankService`. This separation allows flexible agent orchestration while utilizing Google’s managed memory infrastructure.
+
+- **Agent Execution:** Local (Streamlit + ADK)
+- **Memory Management:** Delegated to Agent Engine (Vertex AI Memory Bank)
+- **Why:** This separation allows flexible agent orchestration while utilizing Google’s managed memory infrastructure.
+
+**Example:**
+When building the agent, the `Runner` is initialized with a memory service that connects to the Agent Engine for memory operations, but the agent logic itself is handled locally:
+
+```python
+runner = Runner(
+    agent=agent,
+    app_name=adk_app_name,
+    session_service=session_service,
+    memory_service=VertexAiMemoryBankService(
+        agent_engine_id=adk_engine_id,
+        project=PROJECT_ID,
+        location=LOCATION,
+    ),
+)
+```
 
 #### UI Sections
 
